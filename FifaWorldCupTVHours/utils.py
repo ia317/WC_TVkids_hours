@@ -29,8 +29,11 @@ def get_national_teams(schedule):
     for game in schedule:
         teams.add(game["home_team"])
         teams.add(game["away_team"])
-    # Filter out placeholder teams (W97, W98, L101, etc. for knockout stages)
-    real_teams = {t for t in teams if not t.startswith(('W', 'L')) or len(t) > 4}
+    # Filter out placeholder teams using logic:
+    # - Real team names contain only letters, spaces, &, -, and apostrophes
+    # - Placeholders contain digits, slashes, or W/L prefix with digits
+    import re
+    real_teams = {t for t in teams if re.match(r"^[A-Za-z\s&'-]+$", t)}
     return sorted(real_teams)
 
 
