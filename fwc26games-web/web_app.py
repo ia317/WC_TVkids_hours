@@ -278,21 +278,60 @@ def main():
 
     # --- By Time ---
     elif view_option == "By Time":
-        st.subheader("🕐 Games by Local Time Window")
-        col1, col2 = st.columns(2)
-        with col1:
-            start_hour = st.slider("From", 0, 23, 18, format="%d:00")
-        with col2:
-            end_hour = st.slider("To", 1, 24, 23, format="%d:00")
+        st.subheader("🕐 Games by Kick-off Time")
+
+        st.markdown(
+            f"<div style='background:#e8f4fd; border-left:4px solid #1565c0; padding:10px 16px;"
+            f"border-radius:6px; margin-bottom:18px; font-size:14px; color:#1a3a5c;'>"
+            f"⏱️ Filters by <strong>match kick-off time</strong> in your selected timezone: "
+            f"<strong>{tz_name}</strong></div>",
+            unsafe_allow_html=True,
+        )
+
+        TIME_PRESETS = {
+            "🌅  Morning        06:00 – 12:00": (6, 12),
+            "☀️  Afternoon      12:00 – 17:00": (12, 17),
+            "🌆  Early Evening  17:00 – 20:00": (17, 20),
+            "📺  Prime Time     20:00 – 23:00": (20, 23),
+            "🌙  Late Night     23:00 – 24:00": (23, 24),
+            "🔧  Custom Range":                 None,
+        }
+
+        preset_choice = st.selectbox(
+            "Choose a time window:",
+            list(TIME_PRESETS.keys()),
+            index=3,
+        )
+
+        if TIME_PRESETS[preset_choice] is None:
+            st.markdown("**Set your custom range:**")
+            col1, col2 = st.columns(2)
+            with col1:
+                start_hour = st.slider("Kick-off from", 0, 23, 18, format="%d:00")
+            with col2:
+                end_hour = st.slider("Kick-off until", 1, 24, 23, format="%d:00")
+        else:
+            start_hour, end_hour = TIME_PRESETS[preset_choice]
+            st.markdown(
+                f"<div style='background:#f5f7fa; padding:10px 16px; border-radius:8px;"
+                f"font-size:14px; color:#555; margin-bottom:8px;'>"
+                f"Showing matches that kick off between "
+                f"<strong>{start_hour:02d}:00</strong> and <strong>{end_hour:02d}:00</strong>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
         if start_hour >= end_hour:
-            st.error("'From' must be earlier than 'To'.")
+            st.error("Start time must be earlier than end time.")
         else:
             filtered = get_games_in_time_range(future_games, start_hour, end_hour, tz)
-            st.markdown(f"### {start_hour}:00 – {end_hour}:00 {tz_name} · {len(filtered)} match{'es' if len(filtered) != 1 else ''}")
+            count = len(filtered)
             if not filtered:
-                st.info("No matches in this time window.")
-            for g, dt in filtered:
-                render_game_card(g, dt, tz_name)
+                st.info("No matches kick off in this time window. Try a different range.")
+            else:
+                st.markdown(f"**{count} match{'es' if count != 1 else ''} found**")
+                for g, dt in filtered:
+                    render_game_card(g, dt, tz_name)
 
     # --- By Week ---
     elif view_option == "By Week":
