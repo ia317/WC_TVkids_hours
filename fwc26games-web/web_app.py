@@ -263,8 +263,9 @@ def render_export_options(games_with_dt, tz_name):
         st.markdown("""
 | Platform | Steps |
 |---|---|
-| **iPhone / iPad** | Tap the button → tap the downloaded file → tap **"Add All"** in Apple Calendar |
-| **Android** | Tap the button → the file opens in **Google Calendar** automatically |
+| **iPhone / iPad → Apple Calendar** | Tap the button → tap the downloaded file → tap **"Add All"** in Apple Calendar |
+| **iPhone / iPad → Google Calendar** | Tap the button → save the file → open **Safari** → go to [calendar.google.com](https://calendar.google.com) → **Settings ⚙️ → Import** → choose the saved file |
+| **Android → Google Calendar** | Tap the button → the file opens in **Google Calendar** automatically |
 | **Mac** | Click the button → double-click the downloaded file → Apple Calendar opens and asks to import |
 | **Windows – Outlook** | Click the button → double-click the downloaded `.ics` file → Outlook will import all events |
 | **Google Calendar (browser)** | Click the button → go to [calendar.google.com](https://calendar.google.com) → **Settings ⚙️ → Import** → choose the file → click Import |
