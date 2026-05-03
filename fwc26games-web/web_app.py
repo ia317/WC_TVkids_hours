@@ -3,13 +3,53 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import streamlit as st
+import pytz
 from shared.utils import (
-    TIMEZONES, DEFAULT_TZ_NAME,
     convert_to_tz, get_future_games, get_national_teams,
     get_games_for_team, get_games_in_time_range,
     get_all_weeks, get_games_for_week,
 )
 from shared.fetch import fetch_schedule
+
+TIMEZONES = {
+    # Americas — West to East
+    "Hawaii (HST)":                 pytz.timezone("Pacific/Honolulu"),
+    "Alaska (AKST)":                pytz.timezone("America/Anchorage"),
+    "Los Angeles / Vancouver (PT)": pytz.timezone("America/Los_Angeles"),
+    "Denver / Phoenix (MT)":        pytz.timezone("America/Denver"),
+    "Chicago / Mexico City (CT)":   pytz.timezone("America/Chicago"),
+    "New York / Toronto (ET)":      pytz.timezone("America/New_York"),
+    "Halifax / Atlantic (AT)":      pytz.timezone("America/Halifax"),
+    "Colombia / Peru (COT)":        pytz.timezone("America/Bogota"),
+    "Venezuela (VET)":              pytz.timezone("America/Caracas"),
+    "Brazil — Brasilia (BRT)":      pytz.timezone("America/Sao_Paulo"),
+    "Argentina / Uruguay (ART)":    pytz.timezone("America/Argentina/Buenos_Aires"),
+    "Chile (CLT)":                  pytz.timezone("America/Santiago"),
+    # Europe
+    "London / Lisbon (GMT/BST)":    pytz.timezone("Europe/London"),
+    "Paris / Berlin / Rome (CET)":  pytz.timezone("Europe/Paris"),
+    "Athens / Helsinki (EET)":      pytz.timezone("Europe/Athens"),
+    "Moscow (MSK)":                 pytz.timezone("Europe/Moscow"),
+    # Africa
+    "Lagos / Dakar (WAT)":          pytz.timezone("Africa/Lagos"),
+    "Cairo / Johannesburg (CAT)":   pytz.timezone("Africa/Johannesburg"),
+    "Nairobi / Addis Ababa (EAT)":  pytz.timezone("Africa/Nairobi"),
+    # Middle East
+    "Israel (IST)":                 pytz.timezone("Asia/Jerusalem"),
+    "Turkey / Arabia (TRT)":        pytz.timezone("Europe/Istanbul"),
+    "Gulf — Dubai / Muscat (GST)":  pytz.timezone("Asia/Dubai"),
+    # Asia
+    "Pakistan (PKT)":               pytz.timezone("Asia/Karachi"),
+    "India / Sri Lanka (IST)":      pytz.timezone("Asia/Kolkata"),
+    "Bangladesh (BST)":             pytz.timezone("Asia/Dhaka"),
+    "Bangkok / Jakarta (ICT)":      pytz.timezone("Asia/Bangkok"),
+    "Beijing / Singapore (CST)":    pytz.timezone("Asia/Shanghai"),
+    "Tokyo / Seoul (JST)":          pytz.timezone("Asia/Tokyo"),
+    # Pacific
+    "Sydney / Melbourne (AEST)":    pytz.timezone("Australia/Sydney"),
+    "New Zealand (NZST)":           pytz.timezone("Pacific/Auckland"),
+}
+DEFAULT_TZ_NAME = "New York / Toronto (ET)"
 
 COUNTRY_CODES = {
     "Algeria": "dz", "Argentina": "ar", "Australia": "au", "Austria": "at",
