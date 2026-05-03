@@ -2,7 +2,6 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import urllib.parse
 import streamlit as st
 import pytz
 from datetime import timedelta
@@ -197,19 +196,6 @@ def generate_ics(games_with_dt):
     return "\n".join(lines)
 
 
-def _email_text(games_with_dt, tz_name):
-    lines = ["FIFA World Cup 2026 – Match Schedule",
-             f"Times in: {tz_name}", ""]
-    for g, dt in games_with_dt:
-        stage = _format_stage(g.get("group", ""))
-        lines.append(
-            f"{dt.strftime('%a, %b %d  %H:%M')}  |  "
-            f"{g['home_team']} vs {g['away_team']}  |  "
-            f"{g.get('venue', '')}  |  {stage}"
-        )
-    return "\n".join(lines)
-
-
 def _print_html(games_with_dt, tz_name):
     rows = ""
     for g, dt in games_with_dt:
@@ -249,7 +235,7 @@ def render_export_options(games_with_dt, tz_name):
         "<div class='export-bar'><strong>📤 Export this list</strong></div>",
         unsafe_allow_html=True,
     )
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
         st.download_button(
@@ -262,17 +248,6 @@ def render_export_options(games_with_dt, tz_name):
         )
 
     with col2:
-        body    = _email_text(games_with_dt, tz_name)
-        subject = urllib.parse.quote("FIFA World Cup 2026 – Match Schedule")
-        mailto  = f"mailto:?subject={subject}&body={urllib.parse.quote(body)}"
-        st.markdown(
-            f'<a href="{mailto}" style="display:block;text-align:center;background:#1565c0;'
-            f'color:white;padding:9px 0;border-radius:8px;text-decoration:none;'
-            f'font-size:14px;font-weight:600;margin-top:2px;">📧 Send via Email</a>',
-            unsafe_allow_html=True,
-        )
-
-    with col3:
         st.download_button(
             label="📅 Add to Calendar",
             data=generate_ics(games_with_dt),
