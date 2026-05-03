@@ -7,9 +7,41 @@ from shared.utils import (
     TIMEZONES, DEFAULT_TZ_NAME,
     convert_to_tz, get_future_games, get_national_teams,
     get_games_for_team, get_games_in_time_range,
-    get_all_weeks, get_games_for_week, get_flag,
+    get_all_weeks, get_games_for_week,
 )
 from shared.fetch import fetch_schedule
+
+COUNTRY_CODES = {
+    "Algeria": "dz", "Argentina": "ar", "Australia": "au", "Austria": "at",
+    "Belgium": "be", "Bolivia": "bo", "Brazil": "br", "Cameroon": "cm",
+    "Canada": "ca", "Chile": "cl", "China": "cn", "Colombia": "co",
+    "Costa Rica": "cr", "Croatia": "hr", "Czech Republic": "cz", "Czechia": "cz",
+    "Denmark": "dk", "DR Congo": "cd", "Ecuador": "ec", "Egypt": "eg",
+    "England": "gb-eng", "France": "fr", "Germany": "de", "Ghana": "gh",
+    "Greece": "gr", "Honduras": "hn", "Hungary": "hu", "Indonesia": "id",
+    "Iran": "ir", "Iraq": "iq", "Ireland": "ie", "Israel": "il",
+    "Italy": "it", "Ivory Coast": "ci", "Japan": "jp", "Jordan": "jo",
+    "Kenya": "ke", "Mali": "ml", "Mexico": "mx", "Morocco": "ma",
+    "Netherlands": "nl", "New Zealand": "nz", "Nigeria": "ng",
+    "Northern Ireland": "gb-nir", "Oman": "om", "Panama": "pa", "Paraguay": "py",
+    "Peru": "pe", "Poland": "pl", "Portugal": "pt", "Qatar": "qa",
+    "Romania": "ro", "Saudi Arabia": "sa", "Scotland": "gb-sct", "Senegal": "sn",
+    "Serbia": "rs", "Slovakia": "sk", "Slovenia": "si", "South Africa": "za",
+    "South Korea": "kr", "Spain": "es", "Switzerland": "ch", "Tunisia": "tn",
+    "Turkey": "tr", "Turkiye": "tr", "UAE": "ae", "Ukraine": "ua",
+    "United States": "us", "USA": "us", "Uruguay": "uy", "Uzbekistan": "uz",
+    "Venezuela": "ve", "Wales": "gb-wls",
+}
+
+
+def get_flag_img(team_name, height=24):
+    code = COUNTRY_CODES.get(team_name)
+    if code:
+        return (
+            f'<img src="https://flagcdn.com/w40/{code}.png" '
+            f'height="{height}" style="vertical-align:middle; border-radius:2px; margin:0 4px;">'
+        )
+    return ""
 
 st.set_page_config(
     page_title="FIFA World Cup 2026",
@@ -108,8 +140,8 @@ def format_group(group):
 
 
 def render_game_card(game, dt, tz_name):
-    home_flag = get_flag(game["home_team"])
-    away_flag = get_flag(game["away_team"])
+    home_flag = get_flag_img(game["home_team"])
+    away_flag = get_flag_img(game["away_team"])
     group = game.get("group", "")
     group_label = format_group(group)
     is_knockout = group in KNOCKOUT_STAGES
@@ -195,9 +227,9 @@ def main():
         options = ["— Select a team —"] + teams
         selected_team = st.selectbox("Team:", options)
         if selected_team != "— Select a team —":
-            flag = get_flag(selected_team)
+            flag = get_flag_img(selected_team, height=28)
             team_games = get_games_for_team(future_games, selected_team)
-            st.markdown(f"### {flag} {selected_team} — {len(team_games)} match{'es' if len(team_games) != 1 else ''}")
+            st.markdown(f"### {flag} {selected_team} — {len(team_games)} match{'es' if len(team_games) != 1 else ''}", unsafe_allow_html=True)
             if not team_games:
                 st.info("No upcoming matches for this team.")
             for g in team_games:
@@ -230,8 +262,8 @@ def main():
             st.info("No upcoming matches found.")
         else:
             week_labels = [
-                f"Week {w[0]}: {w[1].strftime('%b %d')} – {w[2].strftime('%b %d')}"
-                for w in weeks
+                f"Week {i+1}: {w[1].strftime('%b %d')} – {w[2].strftime('%b %d')}"
+                for i, w in enumerate(weeks)
             ]
             selected = st.selectbox("Week:", ["— Select a week —"] + week_labels)
             if selected != "— Select a week —":

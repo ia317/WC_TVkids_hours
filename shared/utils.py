@@ -6,11 +6,27 @@ import pytz
 ISRAEL_TZ = pytz.timezone('Asia/Jerusalem')
 
 TIMEZONES = {
-    "Eastern (ET)": pytz.timezone("America/New_York"),
-    "Central (CT)": pytz.timezone("America/Chicago"),
-    "Mountain (MT)": pytz.timezone("America/Denver"),
-    "Pacific (PT)": pytz.timezone("America/Los_Angeles"),
-    "Israel (IST)": pytz.timezone("Asia/Jerusalem"),
+    # North America
+    "Eastern (ET)":          pytz.timezone("America/New_York"),
+    "Central (CT)":          pytz.timezone("America/Chicago"),
+    "Mountain (MT)":         pytz.timezone("America/Denver"),
+    "Pacific (PT)":          pytz.timezone("America/Los_Angeles"),
+    "Mexico City (CT)":      pytz.timezone("America/Mexico_City"),
+    "Canada/Vancouver (PT)": pytz.timezone("America/Vancouver"),
+    # South America
+    "Brazil (BRT)":          pytz.timezone("America/Sao_Paulo"),
+    "Argentina (ART)":       pytz.timezone("America/Argentina/Buenos_Aires"),
+    # Europe
+    "UK (GMT/BST)":          pytz.timezone("Europe/London"),
+    "Central Europe (CET)":  pytz.timezone("Europe/Paris"),
+    "Eastern Europe (EET)":  pytz.timezone("Europe/Athens"),
+    # Middle East
+    "Israel (IST)":          pytz.timezone("Asia/Jerusalem"),
+    "Gulf (GST)":            pytz.timezone("Asia/Dubai"),
+    # Asia / Pacific
+    "India (IST)":           pytz.timezone("Asia/Kolkata"),
+    "Japan/Korea (JST)":     pytz.timezone("Asia/Tokyo"),
+    "Australia East (AEST)": pytz.timezone("Australia/Sydney"),
 }
 
 DEFAULT_TZ_NAME = "Eastern (ET)"
@@ -95,6 +111,40 @@ FLAGS = {
 
 def get_flag(team_name):
     return FLAGS.get(team_name, "🏳️")
+
+
+# ISO 3166-1 alpha-2 codes for flagcdn.com image URLs
+COUNTRY_CODES = {
+    "Algeria": "dz", "Argentina": "ar", "Australia": "au", "Austria": "at",
+    "Belgium": "be", "Bolivia": "bo", "Brazil": "br", "Cameroon": "cm",
+    "Canada": "ca", "Chile": "cl", "China": "cn", "Colombia": "co",
+    "Costa Rica": "cr", "Croatia": "hr", "Czech Republic": "cz", "Czechia": "cz",
+    "Denmark": "dk", "DR Congo": "cd", "Ecuador": "ec", "Egypt": "eg",
+    "England": "gb-eng", "France": "fr", "Germany": "de", "Ghana": "gh",
+    "Greece": "gr", "Honduras": "hn", "Hungary": "hu", "Indonesia": "id",
+    "Iran": "ir", "Iraq": "iq", "Ireland": "ie", "Israel": "il",
+    "Italy": "it", "Ivory Coast": "ci", "Côte d'Ivoire": "ci", "Japan": "jp",
+    "Jordan": "jo", "Kenya": "ke", "Mali": "ml", "Mexico": "mx",
+    "Morocco": "ma", "Netherlands": "nl", "New Zealand": "nz", "Nigeria": "ng",
+    "Northern Ireland": "gb-nir", "Oman": "om", "Panama": "pa", "Paraguay": "py",
+    "Peru": "pe", "Poland": "pl", "Portugal": "pt", "Qatar": "qa",
+    "Romania": "ro", "Saudi Arabia": "sa", "Scotland": "gb-sct", "Senegal": "sn",
+    "Serbia": "rs", "Slovakia": "sk", "Slovenia": "si", "South Africa": "za",
+    "South Korea": "kr", "Spain": "es", "Switzerland": "ch", "Tunisia": "tn",
+    "Turkey": "tr", "Türkiye": "tr", "UAE": "ae", "Ukraine": "ua",
+    "United States": "us", "USA": "us", "Uruguay": "uy", "Uzbekistan": "uz",
+    "Venezuela": "ve", "Wales": "gb-wls",
+}
+
+
+def get_flag_img(team_name, height=24):
+    code = COUNTRY_CODES.get(team_name)
+    if code:
+        return (
+            f'<img src="https://flagcdn.com/w40/{code}.png" '
+            f'height="{height}" style="vertical-align:middle; border-radius:2px; margin:0 4px;">'
+        )
+    return ""
 
 
 def load_schedule(path):
