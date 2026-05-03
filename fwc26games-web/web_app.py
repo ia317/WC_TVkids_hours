@@ -237,7 +237,7 @@ def main():
     st.sidebar.title("🔍 Filter")
     view_option = st.sidebar.radio(
         "View by:",
-        ["All Games", "By Team", "By Time", "By Week"],
+        ["All Games", "By Teams", "By Time", "By Week"],
     )
 
     # Load and filter data
@@ -261,17 +261,42 @@ def main():
             dt = convert_to_tz(g["date"], g["time"], g["utc_offset"], tz)
             render_game_card(g, dt, tz_name)
 
-    # --- By Team ---
-    elif view_option == "By Team":
-        st.subheader("👥 Team Schedule")
-        options = ["— Select a team —"] + teams
-        selected_team = st.selectbox("Team:", options)
-        if selected_team != "— Select a team —":
-            flag = get_flag_img(selected_team, height=28)
-            team_games = get_games_for_team(future_games, selected_team)
-            st.markdown(f"### {flag} {selected_team} — {len(team_games)} match{'es' if len(team_games) != 1 else ''}", unsafe_allow_html=True)
+    # --- By Teams ---
+    elif view_option == "By Teams":
+        st.subheader("👥 Filter by Teams")
+        selected_teams = st.multiselect(
+            "Pick one or more teams to see their matches:",
+            options=teams,
+            placeholder="Start typing a country name...",
+        )
+
+        if not selected_teams:
+            st.info("Select at least one team above to see their schedule.")
+        else:
+            # Collect games for all selected teams, deduplicated
+            seen = set()
+            team_games = []
+            for team in selected_teams:
+                for g in get_games_for_team(future_games, team):
+                    key = (g["date"], g["time"], g["home_team"], g["away_team"])
+                    if key not in seen:
+                        seen.add(key)
+                        team_games.append(g)
+            team_games.sort(key=lambda g: (g["date"], g["time"]))
+
+            count = len(team_games)
+            flags_html = " ".join(get_flag_img(t, height=22) for t in selected_teams)
+            st.markdown(
+                f"<div style='background:#f0f4f8; padding:12px 18px; border-radius:8px;"
+                f"font-size:15px; color:#333; margin:10px 0 16px; display:flex; align-items:center; gap:8px;'>"
+                f"{flags_html}&nbsp; <strong>{', '.join(selected_teams)}</strong>"
+                f"&nbsp;—&nbsp; {count} match{'es' if count != 1 else ''}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
             if not team_games:
-                st.info("No upcoming matches for this team.")
+                st.info("No upcoming matches for the selected teams.")
             for g in team_games:
                 dt = convert_to_tz(g["date"], g["time"], g["utc_offset"], tz)
                 render_game_card(g, dt, tz_name)
