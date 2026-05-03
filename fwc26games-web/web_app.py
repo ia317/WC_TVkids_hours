@@ -304,22 +304,28 @@ def main():
         )
 
         if TIME_PRESETS[preset_choice] is None:
-            st.markdown("**Set your custom range:**")
-            col1, col2 = st.columns(2)
-            with col1:
-                start_hour = st.slider("Kick-off from", 0, 23, 18, format="%d:00")
-            with col2:
-                end_hour = st.slider("Kick-off until", 1, 24, 23, format="%d:00")
+            hour_labels = [f"{h:02d}:00" for h in range(25)]
+            selected_range = st.select_slider(
+                "Drag the handles to set your kick-off window:",
+                options=hour_labels,
+                value=("18:00", "23:00"),
+            )
+            start_hour = int(selected_range[0].split(":")[0])
+            end_hour   = int(selected_range[1].split(":")[0])
         else:
             start_hour, end_hour = TIME_PRESETS[preset_choice]
-            st.markdown(
-                f"<div style='background:#f5f7fa; padding:10px 16px; border-radius:8px;"
-                f"font-size:14px; color:#555; margin-bottom:8px;'>"
-                f"Showing matches that kick off between "
-                f"<strong>{start_hour:02d}:00</strong> and <strong>{end_hour:02d}:00</strong>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+
+        st.markdown(
+            f"<div style='background:#f0f4f8; padding:12px 18px; border-radius:8px;"
+            f"font-size:15px; color:#333; margin:10px 0 4px;'>"
+            f"Showing matches that kick off between "
+            f"<strong style='color:#1565c0;'>{start_hour:02d}:00</strong>"
+            f" &nbsp;→&nbsp; "
+            f"<strong style='color:#1565c0;'>{end_hour:02d}:00</strong>"
+            f" &nbsp;&nbsp;<span style='color:#888; font-size:13px;'>({tz_name})</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
         if start_hour >= end_hour:
             st.error("Start time must be earlier than end time.")
