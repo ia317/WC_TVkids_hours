@@ -231,8 +231,10 @@ def _print_html(games_with_dt, tz_name):
 def render_export_options(games_with_dt, tz_name):
     if not games_with_dt:
         return
+    n = len(games_with_dt)
     st.markdown(
-        "<div class='export-bar'><strong>📤 Export this list</strong></div>",
+        f"<div class='export-bar'><strong>📤 Export this list</strong>"
+        f"&nbsp;&nbsp;<span style='color:#888;font-size:13px;'>{n} match{'es' if n != 1 else ''}</span></div>",
         unsafe_allow_html=True,
     )
     col1, col2 = st.columns(2)
@@ -249,13 +251,28 @@ def render_export_options(games_with_dt, tz_name):
 
     with col2:
         st.download_button(
-            label="📅 Add to Calendar",
+            label=f"📅 Download Calendar ({n} events)",
             data=generate_ics(games_with_dt),
             file_name="wc2026_schedule.ics",
             mime="text/calendar",
             use_container_width=True,
-            help="Downloads an .ics file — open it to add all matches to your calendar app.",
+            help="Downloads a .ics file with one event per match — works with Apple Calendar, Google Calendar, and Outlook.",
         )
+
+    with st.expander("📖 How to add to your calendar app"):
+        st.markdown("""
+| Platform | Steps |
+|---|---|
+| **iPhone / iPad** | Tap the button → tap the downloaded file → tap **"Add All"** in Apple Calendar |
+| **Android** | Tap the button → the file opens in **Google Calendar** automatically |
+| **Mac** | Click the button → double-click the downloaded file → Apple Calendar opens and asks to import |
+| **Windows – Outlook** | Click the button → double-click the downloaded `.ics` file → Outlook will import all events |
+| **Google Calendar (browser)** | Click the button → go to [calendar.google.com](https://calendar.google.com) → **Settings ⚙️ → Import** → choose the file → click Import |
+| **Other apps** | Any calendar app that supports `.ics` import (Thunderbird, Fantastical, etc.) will work the same way |
+
+> Each match is added as a **separate event**, 2 hours long, with the venue in the location field.
+        """)
+
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
