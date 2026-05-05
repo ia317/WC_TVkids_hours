@@ -673,6 +673,13 @@ def main():
     if prev_lang and prev_lang != lang:
         track_event("language_changed", {"language": lang})
 
+    # Timezone picker
+    tz_names = list(TIMEZONES.keys())
+    tz_name  = st.selectbox(
+        T["tz_label"], tz_names, index=tz_names.index(DEFAULT_TZ_NAME),
+    )
+    tz = TIMEZONES[tz_name]
+
     st.markdown(f"""
     <div style="background:#ffffff;border-radius:18px;padding:28px 20px 22px;
     text-align:center;margin-bottom:24px;
@@ -693,13 +700,6 @@ def main():
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # Timezone picker
-    tz_names = list(TIMEZONES.keys())
-    tz_name  = st.selectbox(
-        T["tz_label"], tz_names, index=tz_names.index(DEFAULT_TZ_NAME),
-    )
-    tz = TIMEZONES[tz_name]
 
     # Load schedule before tabs so we can show the count above them
     with st.spinner(T["loading"]):
