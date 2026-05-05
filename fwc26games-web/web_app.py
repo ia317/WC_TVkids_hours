@@ -16,27 +16,30 @@ from shared.fetch import fetch_schedule
 GA4_ID = "G-GH3E1R44Y8"
 
 
-def inject_ga4():
-    st.markdown(f"""
+def _ga4_html(event_name=None, params=None):
+    event_js = ""
+    if event_name:
+        params_js = json.dumps(params or {})
+        event_js = f"gtag('event', '{event_name}', {params_js});"
+    send_pv = "true" if not event_name else "false"
+    return f"""
     <script async src="https://www.googletagmanager.com/gtag/js?id={GA4_ID}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){{window.dataLayer.push(arguments);}}
       gtag('js', new Date());
-      gtag('config', '{GA4_ID}');
+      gtag('config', '{GA4_ID}', {{'send_page_view': {send_pv}}});
+      {event_js}
     </script>
-    """, unsafe_allow_html=True)
+    """
+
+
+def inject_ga4():
+    components.html(_ga4_html(), height=0)
 
 
 def track_event(event_name, params=None):
-    params_js = json.dumps(params or {})
-    components.html(f"""
-    <script>
-      if (window.parent && window.parent.gtag) {{
-        window.parent.gtag('event', '{event_name}', {params_js});
-      }}
-    </script>
-    """, height=0)
+    components.html(_ga4_html(event_name, params), height=0)
 
 # ── Timezones ────────────────────────────────────────────────────────────────
 TIMEZONES = {
