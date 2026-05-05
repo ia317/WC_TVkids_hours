@@ -8,7 +8,6 @@ from datetime import timedelta
 from shared.utils import (
     convert_to_tz, get_future_games, get_national_teams,
     get_games_for_team, get_games_in_time_range,
-    get_all_weeks, get_games_for_week,
 )
 from shared.fetch import fetch_schedule
 
@@ -102,12 +101,16 @@ def format_group(group):
 
 
 # ── Page config & CSS ─────────────────────────────────────────────────────────
-st.set_page_config(page_title="FIFA World Cup 2026", page_icon="⚽", layout="wide")
+st.set_page_config(
+    page_title="FIFA World Cup 2026", page_icon="⚽",
+    layout="wide", initial_sidebar_state="collapsed",
+)
 
 st.markdown("""
 <style>
     .stApp { background-color: #f5f7fa; }
-    section[data-testid="stSidebar"] { background-color: #ffffff; border-right: 1px solid #e0e0e0; }
+    section[data-testid="stSidebar"] { display: none; }
+    button[data-testid="collapsedControl"] { display: none; }
     .game-card {
         background: #ffffff; border-radius: 14px; padding: 18px 24px;
         margin: 10px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.07);
@@ -228,38 +231,326 @@ def _print_html(games_with_dt, tz_name):
 </body></html>"""
 
 
-def render_export_options(games_with_dt, tz_name):
+# ── Translations ─────────────────────────────────────────────────────────────
+TRANSLATIONS = {
+    "🇬🇧 English": {
+        "tz_label": "🌍 Your Time Zone",
+        "tab_all": "📅 All Games", "tab_teams": "👥 By Teams", "tab_time": "🕐 By Time",
+        "loading": "Loading schedule...",
+        "load_error": "Could not load the schedule. Please check your internet connection and refresh.",
+        "match_s": "match", "match_p": "matches",
+        "upcoming": "📊 {} upcoming {}",
+        "export_title": "📤 Export this list",
+        "btn_print": "🖨️ Download for Print",
+        "btn_cal": "📅 Download Calendar ({} events)",
+        "help_print": "Downloads a clean HTML file — open in browser and press Ctrl+P to print.",
+        "help_cal": "Downloads a .ics file — works with Apple Calendar, Google Calendar, and Outlook.",
+        "cal_expander": "📖 How to add to your calendar app",
+        "teams_label": "Pick one or more teams to see their matches:",
+        "teams_ph": "Start typing a country name...",
+        "teams_hint": "Select at least one team above to see their schedule.",
+        "game_s": "game", "game_p": "games",
+        "time_preset_label": "Choose a time window:",
+        "time_presets": [
+            ("🌅  Morning        06:00 – 12:00", (6, 12)),
+            ("☀️  Afternoon      12:00 – 17:00", (12, 17)),
+            ("🌆  Early Evening  17:00 – 20:00", (17, 20)),
+            ("📺  Prime Time     20:00 – 23:00", (20, 23)),
+            ("🌙  Late Night     23:00 – 24:00", (23, 24)),
+            ("🔧  Custom Range",                 None),
+        ],
+        "time_custom": "Drag the handles to set your kick-off window:",
+        "time_filter_info": "⏱️ Filters by <strong>match kick-off time</strong> in: <strong>{}</strong>",
+        "time_showing": "Showing matches between <strong style='color:#1565c0'>{s}:00</strong> &nbsp;→&nbsp; <strong style='color:#1565c0'>{e}:00</strong>",
+        "time_err": "Start time must be earlier than end time.",
+        "time_none": "No matches kick off in this time window. Try a different range.",
+        "found": "{} {} found",
+        "remove_help": "Remove from list",
+        "hidden": "{} {} hidden from this list",
+        "restore": "↺ Restore all",
+        "about_title": "About this app",
+        "about_text": "Browse the full FIFA World Cup 2026 schedule with kick-off times in your timezone. Filter by team or time of day — then export to your calendar or print.",
+        "match_schedule": "Match Schedule",
+        "hosts": "USA · Canada · Mexico · June–July 2026",
+    },
+    "🇪🇸 Español": {
+        "tz_label": "🌍 Tu zona horaria",
+        "tab_all": "📅 Todos los partidos", "tab_teams": "👥 Por equipo", "tab_time": "🕐 Por horario",
+        "loading": "Cargando calendario...",
+        "load_error": "No se pudo cargar el calendario. Verifica tu conexión y recarga.",
+        "match_s": "partido", "match_p": "partidos",
+        "upcoming": "📊 {} {} próximos",
+        "export_title": "📤 Exportar esta lista",
+        "btn_print": "🖨️ Descargar para imprimir",
+        "btn_cal": "📅 Descargar calendario ({} eventos)",
+        "help_print": "Descarga un archivo HTML — ábrelo en tu navegador y presiona Ctrl+P.",
+        "help_cal": "Descarga un archivo .ics — compatible con Apple Calendar, Google Calendar y Outlook.",
+        "cal_expander": "📖 Cómo agregar a tu app de calendario",
+        "teams_label": "Elige uno o más equipos para ver sus partidos:",
+        "teams_ph": "Escribe el nombre de un país...",
+        "teams_hint": "Selecciona al menos un equipo para ver su calendario.",
+        "game_s": "partido", "game_p": "partidos",
+        "time_preset_label": "Elige una franja horaria:",
+        "time_presets": [
+            ("🌅  Mañana          06:00 – 12:00", (6, 12)),
+            ("☀️  Tarde           12:00 – 17:00", (12, 17)),
+            ("🌆  Primera tarde   17:00 – 20:00", (17, 20)),
+            ("📺  Prime Time      20:00 – 23:00", (20, 23)),
+            ("🌙  Noche           23:00 – 24:00", (23, 24)),
+            ("🔧  Rango personal", None),
+        ],
+        "time_custom": "Arrastra los controles para definir el rango horario:",
+        "time_filter_info": "⏱️ Filtra por <strong>hora de inicio del partido</strong> en: <strong>{}</strong>",
+        "time_showing": "Partidos entre <strong style='color:#1565c0'>{s}:00</strong> &nbsp;→&nbsp; <strong style='color:#1565c0'>{e}:00</strong>",
+        "time_err": "La hora de inicio debe ser anterior a la hora de fin.",
+        "time_none": "No hay partidos en esta franja horaria. Prueba otro rango.",
+        "found": "{} {} encontrados",
+        "remove_help": "Quitar de la lista",
+        "hidden": "{} {} ocultos de esta lista",
+        "restore": "↺ Restaurar todo",
+        "about_title": "Acerca de esta app",
+        "about_text": "Consulta el calendario completo del Mundial FIFA 2026 con horarios en tu zona. Filtra por equipo o franja horaria — luego exporta a tu calendario o imprime.",
+        "match_schedule": "Calendario de Partidos",
+        "hosts": "EE.UU. · Canadá · México · Junio–Julio 2026",
+    },
+    "🇫🇷 Français": {
+        "tz_label": "🌍 Votre fuseau horaire",
+        "tab_all": "📅 Tous les matchs", "tab_teams": "👥 Par équipe", "tab_time": "🕐 Par horaire",
+        "loading": "Chargement du calendrier...",
+        "load_error": "Impossible de charger le calendrier. Vérifiez votre connexion et réactualisez.",
+        "match_s": "match", "match_p": "matchs",
+        "upcoming": "📊 {} {} à venir",
+        "export_title": "📤 Exporter cette liste",
+        "btn_print": "🖨️ Télécharger pour imprimer",
+        "btn_cal": "📅 Télécharger le calendrier ({} événements)",
+        "help_print": "Télécharge un fichier HTML — ouvrez-le et appuyez sur Ctrl+P.",
+        "help_cal": "Télécharge un fichier .ics — compatible avec Apple Calendar, Google Calendar et Outlook.",
+        "cal_expander": "📖 Comment ajouter à votre app de calendrier",
+        "teams_label": "Choisissez une ou plusieurs équipes pour voir leurs matchs :",
+        "teams_ph": "Tapez le nom d'un pays...",
+        "teams_hint": "Sélectionnez au moins une équipe pour voir son calendrier.",
+        "game_s": "match", "game_p": "matchs",
+        "time_preset_label": "Choisissez une plage horaire :",
+        "time_presets": [
+            ("🌅  Matin           06:00 – 12:00", (6, 12)),
+            ("☀️  Après-midi      12:00 – 17:00", (12, 17)),
+            ("🌆  Début de soirée 17:00 – 20:00", (17, 20)),
+            ("📺  Prime Time      20:00 – 23:00", (20, 23)),
+            ("🌙  Nuit            23:00 – 24:00", (23, 24)),
+            ("🔧  Plage perso.",   None),
+        ],
+        "time_custom": "Faites glisser les curseurs pour définir la plage :",
+        "time_filter_info": "⏱️ Filtre par <strong>heure de début du match</strong> en : <strong>{}</strong>",
+        "time_showing": "Matchs entre <strong style='color:#1565c0'>{s}:00</strong> &nbsp;→&nbsp; <strong style='color:#1565c0'>{e}:00</strong>",
+        "time_err": "L'heure de début doit être antérieure à l'heure de fin.",
+        "time_none": "Aucun match dans cette plage. Essayez une autre plage.",
+        "found": "{} {} trouvés",
+        "remove_help": "Retirer de la liste",
+        "hidden": "{} {} masqués de cette liste",
+        "restore": "↺ Tout restaurer",
+        "about_title": "À propos de cette app",
+        "about_text": "Consultez le calendrier complet de la Coupe du Monde FIFA 2026 avec les horaires dans votre fuseau. Filtrez par équipe ou plage horaire — puis exportez ou imprimez.",
+        "match_schedule": "Calendrier des Matchs",
+        "hosts": "USA · Canada · Mexique · Juin–Juillet 2026",
+    },
+    "🇧🇷 Português": {
+        "tz_label": "🌍 Seu fuso horário",
+        "tab_all": "📅 Todos os jogos", "tab_teams": "👥 Por seleção", "tab_time": "🕐 Por horário",
+        "loading": "Carregando calendário...",
+        "load_error": "Não foi possível carregar o calendário. Verifique sua conexão e atualize.",
+        "match_s": "jogo", "match_p": "jogos",
+        "upcoming": "📊 {} {} próximos",
+        "export_title": "📤 Exportar esta lista",
+        "btn_print": "🖨️ Baixar para imprimir",
+        "btn_cal": "📅 Baixar calendário ({} eventos)",
+        "help_print": "Baixa um arquivo HTML — abra no navegador e pressione Ctrl+P para imprimir.",
+        "help_cal": "Baixa um arquivo .ics — compatível com Apple Calendar, Google Calendar e Outlook.",
+        "cal_expander": "📖 Como adicionar ao seu app de calendário",
+        "teams_label": "Escolha uma ou mais seleções para ver seus jogos:",
+        "teams_ph": "Digite o nome do país...",
+        "teams_hint": "Selecione pelo menos uma seleção para ver o calendário.",
+        "game_s": "jogo", "game_p": "jogos",
+        "time_preset_label": "Escolha um intervalo de horário:",
+        "time_presets": [
+            ("🌅  Manhã           06:00 – 12:00", (6, 12)),
+            ("☀️  Tarde           12:00 – 17:00", (12, 17)),
+            ("🌆  Final da tarde  17:00 – 20:00", (17, 20)),
+            ("📺  Prime Time      20:00 – 23:00", (20, 23)),
+            ("🌙  Madrugada       23:00 – 24:00", (23, 24)),
+            ("🔧  Intervalo custom", None),
+        ],
+        "time_custom": "Arraste os controles para definir o intervalo:",
+        "time_filter_info": "⏱️ Filtra por <strong>horário de início da partida</strong> em: <strong>{}</strong>",
+        "time_showing": "Jogos entre <strong style='color:#1565c0'>{s}:00</strong> &nbsp;→&nbsp; <strong style='color:#1565c0'>{e}:00</strong>",
+        "time_err": "O horário de início deve ser anterior ao de fim.",
+        "time_none": "Nenhum jogo neste intervalo. Tente outro intervalo.",
+        "found": "{} {} encontrados",
+        "remove_help": "Remover da lista",
+        "hidden": "{} {} ocultos desta lista",
+        "restore": "↺ Restaurar tudo",
+        "about_title": "Sobre este app",
+        "about_text": "Consulte o calendário completo da Copa do Mundo FIFA 2026 com horários no seu fuso. Filtre por seleção ou horário — depois exporte para seu calendário ou imprima.",
+        "match_schedule": "Calendário de Jogos",
+        "hosts": "EUA · Canadá · México · Junho–Julho 2026",
+    },
+    "🇸🇦 العربية": {
+        "tz_label": "🌍 منطقتك الزمنية",
+        "tab_all": "📅 جميع المباريات", "tab_teams": "👥 حسب المنتخب", "tab_time": "🕐 حسب الوقت",
+        "loading": "جارٍ تحميل الجدول...",
+        "load_error": "تعذّر تحميل الجدول. تحقق من اتصالك بالإنترنت وأعد التحميل.",
+        "match_s": "مباراة", "match_p": "مباريات",
+        "upcoming": "📊 {} {} قادمة",
+        "export_title": "📤 تصدير هذه القائمة",
+        "btn_print": "🖨️ تنزيل للطباعة",
+        "btn_cal": "📅 تنزيل التقويم ({} أحداث)",
+        "help_print": "تنزيل ملف HTML — افتحه في متصفحك واضغط Ctrl+P للطباعة.",
+        "help_cal": "تنزيل ملف .ics — متوافق مع Apple Calendar وGoogle Calendar وOutlook.",
+        "cal_expander": "📖 كيفية الإضافة إلى تطبيق التقويم",
+        "teams_label": "اختر منتخباً أو أكثر لعرض مبارياته:",
+        "teams_ph": "اكتب اسم الدولة...",
+        "teams_hint": "اختر منتخباً واحداً على الأقل لعرض جدوله.",
+        "game_s": "مباراة", "game_p": "مباريات",
+        "time_preset_label": "اختر نطاقاً زمنياً:",
+        "time_presets": [
+            ("🌅  الصباح          06:00 – 12:00", (6, 12)),
+            ("☀️  الظهيرة         12:00 – 17:00", (12, 17)),
+            ("🌆  المساء المبكر   17:00 – 20:00", (17, 20)),
+            ("📺  البث المباشر    20:00 – 23:00", (20, 23)),
+            ("🌙  منتصف الليل     23:00 – 24:00", (23, 24)),
+            ("🔧  نطاق مخصص",      None),
+        ],
+        "time_custom": "اسحب المقابض لتحديد النطاق الزمني:",
+        "time_filter_info": "⏱️ تصفية حسب <strong>وقت انطلاق المباراة</strong> في: <strong>{}</strong>",
+        "time_showing": "المباريات بين <strong style='color:#1565c0'>{s}:00</strong> &nbsp;→&nbsp; <strong style='color:#1565c0'>{e}:00</strong>",
+        "time_err": "يجب أن يكون وقت البداية قبل وقت النهاية.",
+        "time_none": "لا توجد مباريات في هذا النطاق الزمني. جرّب نطاقاً آخر.",
+        "found": "{} {} تم العثور عليها",
+        "remove_help": "إزالة من القائمة",
+        "hidden": "{} {} مخفية من هذه القائمة",
+        "restore": "↺ استعادة الكل",
+        "about_title": "حول هذا التطبيق",
+        "about_text": "استعرض جدول كأس العالم FIFA 2026 كاملاً مع مواعيد المباريات بتوقيتك المحلي. صفّح حسب المنتخب أو الوقت — ثم صدّر إلى تقويمك أو اطبع.",
+        "match_schedule": "جدول المباريات",
+        "hosts": "الولايات المتحدة · كندا · المكسيك · يونيو–يوليو 2026",
+    },
+    "🇮🇱 עברית": {
+        "tz_label": "🌍 אזור הזמן שלך",
+        "tab_all": "📅 כל המשחקים", "tab_teams": "👥 לפי קבוצה", "tab_time": "🕐 לפי שעה",
+        "loading": "טוען לוח משחקים...",
+        "load_error": "לא ניתן לטעון את הלוח. בדוק את החיבור לאינטרנט ורענן.",
+        "match_s": "משחק", "match_p": "משחקים",
+        "upcoming": "📊 {} {} קרובים",
+        "export_title": "📤 ייצא רשימה זו",
+        "btn_print": "🖨️ הורד להדפסה",
+        "btn_cal": "📅 הורד יומן ({} אירועים)",
+        "help_print": "מוריד קובץ HTML — פתח בדפדפן ולחץ Ctrl+P להדפסה.",
+        "help_cal": "מוריד קובץ .ics — תואם ל-Apple Calendar, Google Calendar ו-Outlook.",
+        "cal_expander": "📖 איך להוסיף לאפליקציית היומן",
+        "teams_label": "בחר קבוצה אחת או יותר לצפייה במשחקיה:",
+        "teams_ph": "הקלד שם מדינה...",
+        "teams_hint": "בחר לפחות קבוצה אחת לצפייה בלוח המשחקים שלה.",
+        "game_s": "משחק", "game_p": "משחקים",
+        "time_preset_label": "בחר טווח שעות:",
+        "time_presets": [
+            ("🌅  בוקר            06:00 – 12:00", (6, 12)),
+            ("☀️  צהריים          12:00 – 17:00", (12, 17)),
+            ("🌆  בין ערביים      17:00 – 20:00", (17, 20)),
+            ("📺  פריים טיים      20:00 – 23:00", (20, 23)),
+            ("🌙  לילה            23:00 – 24:00", (23, 24)),
+            ("🔧  טווח מותאם אישית", None),
+        ],
+        "time_custom": "גרור את הידיות להגדרת טווח הזמן:",
+        "time_filter_info": "⏱️ מסנן לפי <strong>שעת תחילת המשחק</strong> ב: <strong>{}</strong>",
+        "time_showing": "משחקים בין <strong style='color:#1565c0'>{s}:00</strong> &nbsp;→&nbsp; <strong style='color:#1565c0'>{e}:00</strong>",
+        "time_err": "שעת ההתחלה חייבת להיות לפני שעת הסיום.",
+        "time_none": "אין משחקים בטווח זה. נסה טווח אחר.",
+        "found": "{} {} נמצאו",
+        "remove_help": "הסר מהרשימה",
+        "hidden": "{} {} מוסתרים מרשימה זו",
+        "restore": "↺ שחזר הכל",
+        "about_title": "אודות האפליקציה",
+        "about_text": "עיין בלוח המשחקים המלא של מונדיאל FIFA 2026 עם שעות הקיקאוף באזור הזמן שלך. סנן לפי קבוצה או שעה — ולאחר מכן ייצא ליומן או הדפס.",
+        "match_schedule": "לוח משחקים",
+        "hosts": "ארה\"ב · קנדה · מקסיקו · יוני–יולי 2026",
+    },
+    "🇨🇳 中文": {
+        "tz_label": "🌍 您的时区",
+        "tab_all": "📅 全部比赛", "tab_teams": "👥 按球队", "tab_time": "🕐 按时间",
+        "loading": "正在加载赛程...",
+        "load_error": "无法加载赛程，请检查网络连接后刷新。",
+        "match_s": "场比赛", "match_p": "场比赛",
+        "upcoming": "📊 即将进行 {} {}",
+        "export_title": "📤 导出此列表",
+        "btn_print": "🖨️ 下载打印版",
+        "btn_cal": "📅 下载日历（{} 个赛事）",
+        "help_print": "下载 HTML 文件，在浏览器中打开后按 Ctrl+P 打印。",
+        "help_cal": "下载 .ics 文件，适用于 Apple 日历、Google 日历和 Outlook。",
+        "cal_expander": "📖 如何添加到日历应用",
+        "teams_label": "选择一个或多个球队查看比赛：",
+        "teams_ph": "输入国家名称...",
+        "teams_hint": "请至少选择一支球队以查看其赛程。",
+        "game_s": "场比赛", "game_p": "场比赛",
+        "time_preset_label": "选择时间段：",
+        "time_presets": [
+            ("🌅  早上             06:00 – 12:00", (6, 12)),
+            ("☀️  下午             12:00 – 17:00", (12, 17)),
+            ("🌆  傍晚             17:00 – 20:00", (17, 20)),
+            ("📺  黄金时段         20:00 – 23:00", (20, 23)),
+            ("🌙  深夜             23:00 – 24:00", (23, 24)),
+            ("🔧  自定义范围",      None),
+        ],
+        "time_custom": "拖动滑块设置时间范围：",
+        "time_filter_info": "⏱️ 按 <strong>比赛开球时间</strong> 筛选（时区：<strong>{}</strong>）",
+        "time_showing": "显示开球时间在 <strong style='color:#1565c0'>{s}:00</strong> &nbsp;→&nbsp; <strong style='color:#1565c0'>{e}:00</strong> 之间的比赛",
+        "time_err": "开始时间必须早于结束时间。",
+        "time_none": "此时间段内没有比赛，请尝试其他时间段。",
+        "found": "找到 {} {}",
+        "remove_help": "从列表中移除",
+        "hidden": "已隐藏 {} {}",
+        "restore": "↺ 恢复全部",
+        "about_title": "关于此应用",
+        "about_text": "查看 2026 年 FIFA 世界杯完整赛程，比赛时间已转换为您所在时区。按球队或时间段筛选，然后导出到日历或打印。",
+        "match_schedule": "赛程表",
+        "hosts": "美国 · 加拿大 · 墨西哥 · 2026年6月–7月",
+    },
+}
+
+
+def render_export_options(games_with_dt, tz_name, key, T):
     if not games_with_dt:
         return
     n = len(games_with_dt)
+    m = T["match_s"] if n == 1 else T["match_p"]
     st.markdown(
-        f"<div class='export-bar'><strong>📤 Export this list</strong>"
-        f"&nbsp;&nbsp;<span style='color:#888;font-size:13px;'>{n} match{'es' if n != 1 else ''}</span></div>",
+        f"<div class='export-bar'><strong>{T['export_title']}</strong>"
+        f"&nbsp;&nbsp;<span style='color:#888;font-size:13px;'>{n} {m}</span></div>",
         unsafe_allow_html=True,
     )
     col1, col2 = st.columns(2)
 
     with col1:
         st.download_button(
-            label="🖨️ Download for Print",
+            label=T["btn_print"],
             data=_print_html(games_with_dt, tz_name),
             file_name="wc2026_schedule.html",
             mime="text/html",
             use_container_width=True,
-            help="Downloads a clean HTML file — open it in your browser and press Ctrl+P to print.",
+            help=T["help_print"],
+            key=f"print_{key}",
         )
 
     with col2:
         st.download_button(
-            label=f"📅 Download Calendar ({n} events)",
+            label=T["btn_cal"].format(n),
             data=generate_ics(games_with_dt),
             file_name="wc2026_schedule.ics",
             mime="text/calendar",
             use_container_width=True,
-            help="Downloads a .ics file with one event per match — works with Apple Calendar, Google Calendar, and Outlook.",
+            help=T["help_cal"],
+            key=f"cal_{key}",
         )
 
-    with st.expander("📖 How to add to your calendar app"):
+    with st.expander(T["cal_expander"]):
         st.markdown("""
 | Platform | Steps |
 |---|---|
@@ -282,113 +573,134 @@ def load_data():
     return fetch_schedule()
 
 
+def game_key(g):
+    return f"{g['date']}|{g['home_team']}|{g['away_team']}"
+
+
+def render_games_list(games_with_dt, tz_name, export_key, T):
+    removed = st.session_state.removed_games
+    visible = [(g, dt) for g, dt in games_with_dt if game_key(g) not in removed]
+    hidden  = len(games_with_dt) - len(visible)
+
+    n = len(visible)
+    m = T["match_s"] if n == 1 else T["match_p"]
+    st.info(T["upcoming"].format(n, m))
+
+    render_export_options(visible, tz_name, key=export_key, T=T)
+
+    if hidden > 0:
+        col_msg, col_btn = st.columns([3, 1])
+        with col_msg:
+            gw = T["game_s"] if hidden == 1 else T["game_p"]
+            st.caption(T["hidden"].format(hidden, gw))
+        with col_btn:
+            if st.button(T["restore"], key=f"restore_{export_key}"):
+                st.session_state.removed_games.clear()
+                st.rerun()
+
+    for g, dt in visible:
+        col_card, col_rm = st.columns([11, 1])
+        with col_card:
+            render_game_card(g, dt, tz_name)
+        with col_rm:
+            st.markdown("<div style='padding-top:18px'></div>", unsafe_allow_html=True)
+            if st.button("✕", key=f"rm_{export_key}_{game_key(g)}",
+                         help=T["remove_help"], use_container_width=True):
+                st.session_state.removed_games.add(game_key(g))
+                st.rerun()
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    st.markdown("# ⚽ FIFA World Cup 2026")
-    st.markdown("### Match Schedule")
-    st.markdown("---")
+    if "removed_games" not in st.session_state:
+        st.session_state.removed_games = set()
 
-    # Sidebar — settings
-    st.sidebar.title("⚙️ Settings")
+    # Language selector
+    lang = st.selectbox(
+        "🌐 Language", list(TRANSLATIONS.keys()), key="lang", label_visibility="collapsed"
+    )
+    T = TRANSLATIONS[lang]
+
+    st.markdown(f"""
+    <div style="background:#ffffff;border-radius:18px;padding:28px 20px 22px;
+    text-align:center;margin-bottom:24px;
+    box-shadow:0 2px 18px rgba(0,0,0,0.08);
+    border-top:5px solid #1565c0;">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/2026_FIFA_World_Cup_emblem.svg/250px-2026_FIFA_World_Cup_emblem.svg.png"
+             alt="FIFA World Cup 2026"
+             style="height:130px;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.12));">
+        <div style="margin-top:16px;display:flex;align-items:center;
+        justify-content:center;gap:10px;">
+            <div style="height:1px;width:36px;background:#ddd;"></div>
+            <div style="font-size:12px;font-weight:800;color:#1565c0;
+            letter-spacing:3px;text-transform:uppercase;">{T["match_schedule"]}</div>
+            <div style="height:1px;width:36px;background:#ddd;"></div>
+        </div>
+        <div style="font-size:12px;color:#aaa;margin-top:6px;letter-spacing:1px;">
+            {T["hosts"]}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Timezone picker
     tz_names = list(TIMEZONES.keys())
-    tz_name  = st.sidebar.selectbox(
-        "Time Zone", tz_names, index=tz_names.index(DEFAULT_TZ_NAME)
+    tz_name  = st.selectbox(
+        T["tz_label"], tz_names, index=tz_names.index(DEFAULT_TZ_NAME),
     )
     tz = TIMEZONES[tz_name]
 
-    st.sidebar.markdown("---")
-    st.sidebar.title("🔍 Filter")
-    view_option = st.sidebar.radio(
-        "View by:",
-        ["All Games", "By Teams", "By Time", "By Week", "ℹ️ About"],
-    )
-
-    # About — no data needed
-    if view_option == "ℹ️ About":
-        st.subheader("ℹ️ About")
-        st.markdown("""
-        <div style="background:white;border-radius:14px;padding:30px;max-width:620px;
-        box-shadow:0 2px 10px rgba(0,0,0,0.07);">
-            <h3 style="color:#1565c0;margin-top:0;">⚽ FIFA World Cup 2026 – Schedule App</h3>
-            <p style="color:#444;line-height:1.8;">
-            Browse the complete FIFA World Cup 2026 match schedule with kick-off times
-            converted to your local timezone. Filter by team, time of day, or week —
-            then export the list to your calendar, send it by email, or print it.
-            </p>
-            <p style="color:#444;line-height:1.8;">
-            Data is fetched automatically and refreshed every hour, so knockout stage
-            fixtures update as the competition progresses.
-            </p>
-            <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-            <p style="color:#555;font-size:14px;margin:8px 0;">
-                <strong>Developed by:</strong> Idan Atiya
-            </p>
-            <p style="color:#555;font-size:14px;margin:8px 0;">
-                <strong>Contact:</strong>
-                <a href="mailto:idanatiya@outlook.com" style="color:#1565c0;">
-                idanatiya@outlook.com</a>
-            </p>
-            <p style="color:#555;font-size:14px;margin:8px 0;">
-                <strong>Source code:</strong>
-                <a href="https://github.com/ia317/WC_TVkids_hours" target="_blank"
-                style="color:#1565c0;">github.com/ia317/WC_TVkids_hours</a>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        return
-
-    # Load schedule
-    with st.spinner("Loading schedule..."):
+    # Load schedule before tabs so we can show the count above them
+    with st.spinner(T["loading"]):
         schedule = load_data()
 
     if not schedule:
-        st.error("Could not load the schedule. Please check your internet connection and refresh.")
+        st.error(T["load_error"])
         return
 
     future_games = get_future_games(schedule)
     teams = get_national_teams(future_games)
-    total = len(future_games)
-    st.info(f"📊 {total} upcoming {'match' if total == 1 else 'matches'} · Data refreshes every hour")
+
+    st.markdown("---")
+
+    # Tabs — always visible on mobile
+    tab_all, tab_teams, tab_time = st.tabs(
+        [T["tab_all"], T["tab_teams"], T["tab_time"]]
+    )
 
     # ── All Games ──────────────────────────────────────────────────────────────
-    if view_option == "All Games":
-        st.subheader("📅 All Upcoming Matches")
+    with tab_all:
         games_with_dt = [
             (g, convert_to_tz(g["date"], g["time"], g["utc_offset"], tz))
             for g in future_games
         ]
-        for g, dt in games_with_dt:
-            render_game_card(g, dt, tz_name)
-        render_export_options(games_with_dt, tz_name)
+        render_games_list(games_with_dt, tz_name, export_key="all", T=T)
 
     # ── By Teams ───────────────────────────────────────────────────────────────
-    elif view_option == "By Teams":
-        st.subheader("👥 Filter by Teams")
+    with tab_teams:
         selected_teams = st.multiselect(
-            "Pick one or more teams to see their matches:",
-            options=teams,
-            placeholder="Start typing a country name...",
+            T["teams_label"], options=teams, placeholder=T["teams_ph"],
         )
 
         if not selected_teams:
-            st.info("Select at least one team above to see their schedule.")
+            st.info(T["teams_hint"])
         else:
             seen, team_games = set(), []
             for team in selected_teams:
                 for g in get_games_for_team(future_games, team):
-                    key = (g["date"], g["time"], g["home_team"], g["away_team"])
-                    if key not in seen:
-                        seen.add(key)
+                    tkey = (g["date"], g["time"], g["home_team"], g["away_team"])
+                    if tkey not in seen:
+                        seen.add(tkey)
                         team_games.append(g)
             team_games.sort(key=lambda g: (g["date"], g["time"]))
 
             flags_html = " ".join(get_flag_img(t, height=22) for t in selected_teams)
             count = len(team_games)
+            cw = T["match_s"] if count == 1 else T["match_p"]
             st.markdown(
                 f"<div style='background:#f0f4f8;padding:12px 18px;border-radius:8px;"
                 f"font-size:15px;color:#333;margin:10px 0 16px;'>"
                 f"{flags_html}&nbsp; <strong>{', '.join(selected_teams)}</strong>"
-                f"&nbsp;—&nbsp; {count} match{'es' if count != 1 else ''}</div>",
+                f"&nbsp;—&nbsp; {count} {cw}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -396,93 +708,78 @@ def main():
                 (g, convert_to_tz(g["date"], g["time"], g["utc_offset"], tz))
                 for g in team_games
             ]
-            for g, dt in games_with_dt:
-                render_game_card(g, dt, tz_name)
-            render_export_options(games_with_dt, tz_name)
+            render_games_list(games_with_dt, tz_name, export_key="teams", T=T)
 
     # ── By Time ────────────────────────────────────────────────────────────────
-    elif view_option == "By Time":
-        st.subheader("🕐 Games by Kick-off Time")
+    with tab_time:
         st.markdown(
             f"<div style='background:#e8f4fd;border-left:4px solid #1565c0;padding:10px 16px;"
             f"border-radius:6px;margin-bottom:18px;font-size:14px;color:#1a3a5c;'>"
-            f"⏱️ Filters by <strong>match kick-off time</strong> in: <strong>{tz_name}</strong></div>",
+            f"{T['time_filter_info'].format(tz_name)}</div>",
             unsafe_allow_html=True,
         )
 
-        TIME_PRESETS = {
-            "🌅  Morning        06:00 – 12:00": (6, 12),
-            "☀️  Afternoon      12:00 – 17:00": (12, 17),
-            "🌆  Early Evening  17:00 – 20:00": (17, 20),
-            "📺  Prime Time     20:00 – 23:00": (20, 23),
-            "🌙  Late Night     23:00 – 24:00": (23, 24),
-            "🔧  Custom Range":                 None,
-        }
+        time_presets = T["time_presets"]
+        preset_labels = [label for label, _ in time_presets]
+        preset_hours  = {label: hours for label, hours in time_presets}
 
-        preset_choice = st.selectbox("Choose a time window:", list(TIME_PRESETS.keys()), index=3)
+        preset_choice = st.selectbox(T["time_preset_label"], preset_labels, index=3)
 
-        if TIME_PRESETS[preset_choice] is None:
+        if preset_hours[preset_choice] is None:
             hour_labels    = [f"{h:02d}:00" for h in range(25)]
             selected_range = st.select_slider(
-                "Drag the handles to set your kick-off window:",
-                options=hour_labels, value=("18:00", "23:00"),
+                T["time_custom"], options=hour_labels, value=("18:00", "23:00"),
             )
             start_hour = int(selected_range[0].split(":")[0])
             end_hour   = int(selected_range[1].split(":")[0])
         else:
-            start_hour, end_hour = TIME_PRESETS[preset_choice]
+            start_hour, end_hour = preset_hours[preset_choice]
 
         st.markdown(
             f"<div style='background:#f0f4f8;padding:12px 18px;border-radius:8px;"
             f"font-size:15px;color:#333;margin:10px 0 4px;'>"
-            f"Showing matches that kick off between "
-            f"<strong style='color:#1565c0;'>{start_hour:02d}:00</strong>"
-            f" &nbsp;→&nbsp; "
-            f"<strong style='color:#1565c0;'>{end_hour:02d}:00</strong>"
+            f"{T['time_showing'].format(s=start_hour, e=end_hour)}"
             f"&nbsp;&nbsp;<span style='color:#888;font-size:13px;'>({tz_name})</span></div>",
             unsafe_allow_html=True,
         )
 
         if start_hour >= end_hour:
-            st.error("Start time must be earlier than end time.")
+            st.error(T["time_err"])
         else:
             filtered = get_games_in_time_range(future_games, start_hour, end_hour, tz)
             if not filtered:
-                st.info("No matches kick off in this time window. Try a different range.")
+                st.info(T["time_none"])
             else:
-                st.markdown(f"**{len(filtered)} match{'es' if len(filtered) != 1 else ''} found**")
-                for g, dt in filtered:
-                    render_game_card(g, dt, tz_name)
-                render_export_options(filtered, tz_name)
-
-    # ── By Week ────────────────────────────────────────────────────────────────
-    elif view_option == "By Week":
-        st.subheader("📆 Games by Week")
-        weeks = get_all_weeks(future_games, tz)
-        if not weeks:
-            st.info("No upcoming matches found.")
-        else:
-            week_labels = [
-                f"Week {i+1}: {w[1].strftime('%b %d')} – {w[2].strftime('%b %d')}"
-                for i, w in enumerate(weeks)
-            ]
-            selected = st.selectbox("Week:", ["— Select a week —"] + week_labels)
-            if selected != "— Select a week —":
-                week_index = week_labels.index(selected) + 1
-                week_games = get_games_for_week(future_games, week_index, tz)
-                st.markdown(
-                    f"### {selected} · {len(week_games)} match{'es' if len(week_games) != 1 else ''}"
-                )
-                for g, dt in week_games:
-                    render_game_card(g, dt, tz_name)
-                render_export_options(week_games, tz_name)
+                fw = T["match_s"] if len(filtered) == 1 else T["match_p"]
+                st.markdown(f"**{T['found'].format(len(filtered), fw)}**")
+                render_games_list(filtered, tz_name, export_key="time", T=T)
 
     st.markdown("---")
-    st.markdown(
-        "<div style='text-align:center;color:#aaa;font-size:12px;'>"
-        "Data from OpenFootball · Updates hourly</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"""
+    <div style="background:#ffffff;border-radius:16px;padding:24px 28px;
+    max-width:560px;margin:0 auto 8px;
+    box-shadow:0 2px 16px rgba(0,0,0,0.09);
+    border-top: 4px solid #f5a623;">
+        <div style="font-size:13px;font-weight:700;color:#f5a623;letter-spacing:2px;
+        text-transform:uppercase;margin-bottom:6px;">{T["about_title"]}</div>
+        <div style="font-size:14px;color:#444;line-height:1.75;margin-bottom:16px;">
+            {T["about_text"]}
+        </div>
+        <div style="border-top:1px solid #f0f0f0;padding-top:14px;
+        display:flex;flex-wrap:wrap;gap:20px;align-items:center;">
+            <span style="color:#222;font-size:14px;font-weight:600;">👤 Idan Atiya</span>
+            <a href="http://www.linkedin.com/in/idanatiya317" target="_blank"
+               style="color:#0a66c2;text-decoration:none;font-size:14px;font-weight:500;">
+               🔗 LinkedIn</a>
+            <a href="https://github.com/ia317/WC_TVkids_hours" target="_blank"
+               style="color:#333;text-decoration:none;font-size:14px;font-weight:500;">
+               💻 GitHub</a>
+        </div>
+    </div>
+    <div style="text-align:center;color:#ccc;font-size:11px;margin-top:10px;margin-bottom:4px;">
+        Data from OpenFootball
+    </div>
+    """, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

@@ -193,7 +193,8 @@ def get_national_teams(schedule):
     for game in schedule:
         teams.add(game["home_team"])
         teams.add(game["away_team"])
-    real_teams = {t for t in teams if re.match(r"^[A-Za-z\s&'-]+$", t)}
+    # Exclude entries with digits (scores, placeholders); allow all Unicode letters
+    real_teams = {t for t in teams if t and not re.search(r'\d', t)}
     return sorted(real_teams)
 
 
@@ -227,10 +228,13 @@ def get_games_for_week(schedule, week_index, tz):
     weeks = get_all_weeks(schedule, tz)
     if week_index < 1 or week_index > len(weeks):
         return []
-    week_num = weeks[week_index - 1][0]
+    _, week_monday, week_sunday = weeks[week_index - 1]
+    iso = week_monday.isocalendar()
+    target_year, target_week = iso[0], iso[1]
     games = []
     for g in schedule:
         dt = convert_to_tz(g["date"], g["time"], g["utc_offset"], tz)
-        if dt.isocalendar()[1] == week_num:
+        g_iso = dt.isocalendar()
+        if g_iso[0] == target_year and g_iso[1] == target_week:
             games.append((g, dt))
     return sorted(games, key=lambda x: x[1])
