@@ -2,7 +2,9 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import json
 import streamlit as st
+import streamlit.components.v1 as components
 import pytz
 from datetime import timedelta
 from shared.utils import (
@@ -10,6 +12,42 @@ from shared.utils import (
     get_games_for_team, get_games_in_time_range,
 )
 from shared.fetch import fetch_schedule
+
+# ── Analytics (Google Analytics 4) ───────────────────────────────────────────
+# Replace with your GA4 Measurement ID from https://analytics.google.com
+GA4_ID = "G-XXXXXXXXXX"
+
+
+def _ga4_ready():
+    return GA4_ID and "XXXXXXXXXX" not in GA4_ID
+
+
+def inject_ga4():
+    if not _ga4_ready():
+        return
+    st.markdown(f"""
+    <script async src="https://www.googletagmanager.com/gtag/js?id={GA4_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){{window.dataLayer.push(arguments);}}
+      gtag('js', new Date());
+      gtag('config', '{GA4_ID}');
+    </script>
+    """, unsafe_allow_html=True)
+
+
+def track_event(event_name, params=None):
+    """Fire a GA4 custom event from within Streamlit's iframe context."""
+    if not _ga4_ready():
+        return
+    params_js = json.dumps(params or {})
+    components.html(f"""
+    <script>
+      if (window.parent && window.parent.gtag) {{
+        window.parent.gtag('event', '{event_name}', {params_js});
+      }}
+    </script>
+    """, height=0)
 
 # ── Timezones ────────────────────────────────────────────────────────────────
 TIMEZONES = {
@@ -529,7 +567,7 @@ def render_export_options(games_with_dt, tz_name, key, T):
     col1, col2 = st.columns(2)
 
     with col1:
-        st.download_button(
+        if st.download_button(
             label=T["btn_print"],
             data=_print_html(games_with_dt, tz_name),
             file_name="wc2026_schedule.html",
@@ -537,10 +575,11 @@ def render_export_options(games_with_dt, tz_name, key, T):
             use_container_width=True,
             help=T["help_print"],
             key=f"print_{key}",
-        )
+        ):
+            track_event("print_download", {"tab": key, "matches": n})
 
     with col2:
-        st.download_button(
+        if st.download_button(
             label=T["btn_cal"].format(n),
             data=generate_ics(games_with_dt),
             file_name="wc2026_schedule.ics",
@@ -548,7 +587,8 @@ def render_export_options(games_with_dt, tz_name, key, T):
             use_container_width=True,
             help=T["help_cal"],
             key=f"cal_{key}",
-        )
+        ):
+            track_event("calendar_download", {"tab": key, "matches": n})
 
     with st.expander(T["cal_expander"]):
         st.markdown("""
@@ -607,19 +647,32 @@ def render_games_list(games_with_dt, tz_name, export_key, T):
             if st.button("✕", key=f"rm_{export_key}_{game_key(g)}",
                          help=T["remove_help"], use_container_width=True):
                 st.session_state.removed_games.add(game_key(g))
+                track_event("game_removed", {"tab": export_key})
                 st.rerun()
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
+    inject_ga4()
+
     if "removed_games" not in st.session_state:
         st.session_state.removed_games = set()
 
+    # Track new sessions once per browser session
+    if "session_tracked" not in st.session_state:
+        st.session_state.session_tracked = True
+        track_event("session_start")
+
     # Language selector
+    prev_lang = st.session_state.get("lang")
     lang = st.selectbox(
         "🌐 Language", list(TRANSLATIONS.keys()), key="lang", label_visibility="collapsed"
     )
     T = TRANSLATIONS[lang]
+
+    # Track language changes
+    if prev_lang and prev_lang != lang:
+        track_event("language_changed", {"language": lang})
 
     st.markdown(f"""
     <div style="background:#ffffff;border-radius:18px;padding:28px 20px 22px;
