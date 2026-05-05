@@ -20,18 +20,30 @@ def _ga4_html(event_name=None, params=None):
     event_js = ""
     if event_name:
         params_js = json.dumps(params or {})
-        event_js = f"gtag('event', '{event_name}', {params_js});"
-    send_pv = "true" if not event_name else "false"
-    return f"""
-    <script async src="https://www.googletagmanager.com/gtag/js?id={GA4_ID}"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){{window.dataLayer.push(arguments);}}
-      gtag('js', new Date());
-      gtag('config', '{GA4_ID}', {{'send_page_view': {send_pv}}});
-      {event_js}
-    </script>
-    """
+        event_js = f"""
+        if (typeof window.parent.gtag === 'function') {{
+            window.parent.gtag('event', '{event_name}', {params_js});
+        }}
+        """
+    # Inject gtag.js into the real parent page (not the iframe),
+    # so GA4 sees the actual app URL and runs in the top-level context.
+    return f"""<script>
+(function() {{
+    var p = window.parent;
+    if (!p._ga4_ready) {{
+        p._ga4_ready = true;
+        p.dataLayer = p.dataLayer || [];
+        p.gtag = function() {{ p.dataLayer.push(arguments); }};
+        p.gtag('js', new Date());
+        p.gtag('config', '{GA4_ID}');
+        var s = p.document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id={GA4_ID}';
+        p.document.head.appendChild(s);
+    }}
+    {event_js}
+}})();
+</script>"""
 
 
 def inject_ga4():
