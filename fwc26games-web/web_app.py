@@ -2,7 +2,9 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+import json
 import streamlit as st
+import streamlit.components.v1 as components
 import pytz
 from datetime import timedelta
 from shared.utils import (
@@ -10,11 +12,31 @@ from shared.utils import (
     get_games_for_team, get_games_in_time_range,
 )
 from shared.fetch import fetch_schedule
-from analytics import log_event, get_stats
+
+GA4_ID = "G-GH3E1R44Y8"
+
+
+def inject_ga4():
+    st.markdown(f"""
+    <script async src="https://www.googletagmanager.com/gtag/js?id={GA4_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){{window.dataLayer.push(arguments);}}
+      gtag('js', new Date());
+      gtag('config', '{GA4_ID}');
+    </script>
+    """, unsafe_allow_html=True)
 
 
 def track_event(event_name, params=None):
-    log_event(event_name, params)
+    params_js = json.dumps(params or {})
+    components.html(f"""
+    <script>
+      if (window.parent && window.parent.gtag) {{
+        window.parent.gtag('event', '{event_name}', {params_js});
+      }}
+    </script>
+    """, height=0)
 
 # ── Timezones ────────────────────────────────────────────────────────────────
 TIMEZONES = {
@@ -618,40 +640,12 @@ def render_games_list(games_with_dt, tz_name, export_key, T):
                 st.rerun()
 
 
-# ── Stats page ────────────────────────────────────────────────────────────────
-def show_stats():
-    st.markdown("## 📊 Analytics Dashboard")
-    stats = get_stats()
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Visits", stats["total_sessions"])
-    c2.metric("Print Downloads", stats["print_downloads"])
-    c3.metric("Calendar Downloads", stats["calendar_downloads"])
-    c4.metric("Games Removed", stats["game_removals"])
-
-    if stats["by_day"]:
-        st.markdown("### Visits by Day")
-        days = sorted(stats["by_day"].items())
-        st.bar_chart(dict(days))
-
-    if stats["language_changes"]:
-        st.markdown("### Language Switches")
-        st.bar_chart(stats["language_changes"])
-
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    if st.query_params.get("stats") == "1":
-        show_stats()
-        return
+    inject_ga4()
 
     if "removed_games" not in st.session_state:
         st.session_state.removed_games = set()
-
-    # Track new sessions once per browser session
-    if "session_tracked" not in st.session_state:
-        st.session_state.session_tracked = True
-        track_event("session_start")
 
     # Language selector
     prev_lang = st.session_state.get("lang")
